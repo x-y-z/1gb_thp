@@ -23,12 +23,19 @@
 #define PFN_MASK     ((1UL<<55)-1)
 
 #define KPF_THP      (1UL<<22)
+#define KPF_PUD_THP      (1UL<<26)
 
 #define MADV_SPLITHUGEPAGE 24
 #define MADV_PROMOTEHUGEPAGE 25
 
 #define MADV_SPLITHUGEMAP 26
 #define MADV_PROMOTEHUGEMAP 27
+
+#define MADV_SPLITHUGEPUDPAGE 28
+#define MADV_PROMOTEHUGEPUDPAGE 29
+
+#define MADV_SPLITHUGEPUDMAP 30
+#define MADV_PROMOTEHUGEPUDMAP 31
 
 void print_paddr_and_flags(char *bigmem, int pagemap_file, int kpageflags_file)
 {
@@ -49,7 +56,7 @@ void print_paddr_and_flags(char *bigmem, int pagemap_file, int kpageflags_file)
 				paddr & PAGE_TYPE_MASK ? "file-page" : "anon",
 				paddr & PRESENT_MASK ? "there": "not there",
 				paddr & SWAPPED_MASK ? "swapped": "not swapped",
-				page_flags & KPF_THP ? "thp" : "not thp"
+				page_flags & KPF_PUD_THP ? "1gb-thp":(page_flags & KPF_THP ? "thp" : "not thp")
 				/*page_flags*/
 				);
 
@@ -63,7 +70,7 @@ void print_paddr_and_flags(char *bigmem, int pagemap_file, int kpageflags_file)
 int main(int argc, char** argv)
 {
 	char *one_page;
-	size_t len = PAGE_2MB;
+	size_t len = PAGE_1GB;
 	const char *pagemap_proc = "/proc/self/pagemap";
 	const char *kpageflags_proc = "/proc/kpageflags";
 	int pagemap_fd = 0;
@@ -136,11 +143,11 @@ int main(int argc, char** argv)
 
 	memset(one_page, 1, len);
 
-	for (i = 0; i < len; i += PAGE_4KB)
+	for (i = 0; i < len; i += PAGE_2MB)
 		print_paddr_and_flags(one_page + i, pagemap_fd, kpageflags_fd);
 
 	if (split_map) {
-		if (madvise(one_page, len, MADV_SPLITHUGEMAP)) {
+		if (madvise(one_page, len, MADV_SPLITHUGEPUDMAP)) {
 			perror("madvise split huge map failed");
 			exit(-1);
 		}
@@ -149,7 +156,7 @@ int main(int argc, char** argv)
 	}
 
 	if (split_page) {
-		if (madvise(one_page, len, MADV_SPLITHUGEPAGE)) {
+		if (madvise(one_page, len, MADV_SPLITHUGEPUDPAGE)) {
 			perror("madvise split huge map failed");
 			exit(-1);
 		}
@@ -158,15 +165,15 @@ int main(int argc, char** argv)
 	}
 
 	if (promote_map) {
-		if (madvise(one_page, len, MADV_SPLITHUGEMAP)) {
+		if (madvise(one_page, len, MADV_SPLITHUGEPUDMAP)) {
 			perror("madvise split huge map failed");
 			exit(-1);
 		}
 		printf("---------after split map---------\n");
-		for (i = 0; i < len; i += PAGE_4KB)
+		for (i = 0; i < len; i += PAGE_2MB)
 			print_paddr_and_flags(one_page + i, pagemap_fd, kpageflags_fd);
 
-		if (madvise(one_page, len, MADV_PROMOTEHUGEMAP)) {
+		if (madvise(one_page, len, MADV_PROMOTEHUGEPUDMAP)) {
 			perror("madvise promote huge map failed");
 			exit(-1);
 		}
@@ -175,15 +182,15 @@ int main(int argc, char** argv)
 	}
 
 	if (promote_page) {
-		if (madvise(one_page, len, MADV_SPLITHUGEPAGE)) {
+		if (madvise(one_page, len, MADV_SPLITHUGEPUDPAGE)) {
 			perror("madvise split huge page failed");
 			exit(-1);
 		}
 		printf("---------after split page---------\n");
-		for (i = 0; i < len; i += PAGE_4KB)
+		for (i = 0; i < len; i += PAGE_2MB)
 			print_paddr_and_flags(one_page + i, pagemap_fd, kpageflags_fd);
 
-		if (madvise(one_page, len, MADV_PROMOTEHUGEPAGE)) {
+		if (madvise(one_page, len, MADV_PROMOTEHUGEPUDPAGE)) {
 			perror("madvise promote huge page failed");
 			exit(-1);
 		}
@@ -191,7 +198,7 @@ int main(int argc, char** argv)
 		memset(one_page, 1, len);
 	}
 
-	for (i = 0; i < len; i += PAGE_4KB)
+	for (i = 0; i < len; i += PAGE_2MB)
 		print_paddr_and_flags(one_page + i, pagemap_fd, kpageflags_fd);
 
 	if (pagemap_fd)
